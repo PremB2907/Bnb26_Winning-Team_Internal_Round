@@ -4,90 +4,152 @@ import numpy as np
 from ml.relearn_ml.resolution import ResolutionEvaluator, ResolutionState
 
 random.seed(42)
+np.random.seed(42)
 
-def run_simulation(n_learners=500, p_lucky_range=(0.1, 0.4)):
+def bootstrap_ci_rate(data_list: list, n_bootstraps: int = 1000, alpha: float = 0.05):
+    if not data_list:
+        return 0.0, 0.0
+    arr = np.array(data_list, dtype=float)
+    n = len(arr)
+    boot_means = []
+    for _ in range(n_bootstraps):
+        boot_means.append(np.mean(np.random.choice(arr, size=n, replace=True)))
+    lower = float(np.percentile(boot_means, (alpha / 2.0) * 100))
+    upper = float(np.percentile(boot_means, (1.0 - alpha / 2.0) * 100))
+    return lower * 100, upper * 100
+
+def run_generative_learner_simulation(n_learners: int = 2000):
     evaluator = ResolutionEvaluator()
 
-    naive_false_resolutions = 0
-    our_false_resolutions = 0
-    our_false_persisting = 0
-    our_probe_counts = []
+    # Generative model parameter ranges
+    p_lucky_sweep = [0.1, 0.25, 0.4]
+    p_forget_sweep = [0.05, 0.15, 0.25]
+    p_slip = 0.10
+    intervention_effectiveness = 0.60 # 60% of learners resolve misconception after intervention
 
-    for learner_id in range(n_learners):
-        p_lucky = random.uniform(*p_lucky_range)
-        # True ground state: Learner genuinely has misconception (True) or resolved it after intervention (False)
-        # Assume 40% of learners actually resolve after intervention, 60% retain misconception
-        truly_resolved = (random.random() < 0.40)
+    results_by_policy = {
+        "Naive_1_Correct": {"false_res": [], "false_pers": [], "probes": []},
+        "k_Correct_k2": {"false_res": [], "false_pers": [], "probes": []},
+        "k_Correct_k3": {"false_res": [], "false_pers": [], "probes": []},
+        "Ours_BKT_Transfer": {"false_res": [], "false_pers": [], "probes": []}
+    }
 
-        # 1. Naive Policy Simulation (Single follow-up question)
-        # Non-discriminating question where lucky correct chance applies
-        if truly_resolved:
-            naive_correct = (random.random() > 0.1) # 90% chance correct
+    for i in range(n_learners):
+        p_lucky = random.choice(p_lucky_sweep)
+        p_forget = random.choice(p_forget_sweep)
+
+        # Generative Hidden Learner State
+        # True state: resolved (True) or retaining misconception (False)
+        is_truly_resolved = (random.random() < intervention_effectiveness)
+
+        # Delayed relapse / forgetting effect
+        if is_truly_resolved and random.random() < p_forget:
+            is_truly_resolved = False
+
+        # -------------------------------------------------------------
+        # 1. Naive Policy (1 Correct Answer -> RESOLVED)
+        # -------------------------------------------------------------
+        if is_truly_resolved:
+            n_ans1 = (random.random() > p_slip)
         else:
-            naive_correct = (random.random() < p_lucky) # Lucky correct!
+            n_ans1 = (random.random() < p_lucky) # Lucky correct on non-discriminating item!
+        
+        naive_resolved = n_ans1
+        results_by_policy["Naive_1_Correct"]["false_res"].append(1 if (naive_resolved and not is_truly_resolved) else 0)
+        results_by_policy["Naive_1_Correct"]["false_pers"].append(1 if (not naive_resolved and is_truly_resolved) else 0)
+        results_by_policy["Naive_1_Correct"]["probes"].append(1)
 
-        naive_verdict_resolved = naive_correct
-        if naive_verdict_resolved and not truly_resolved:
-            naive_false_resolutions += 1
-
-        # 2. Our Policy Simulation (Multi-probe sequence with discriminating transfer probes & explanation check)
-        probe_attempts = []
-        # Probe 1 (Discriminating)
-        if truly_resolved:
-            p1_correct = (random.random() > 0.1)
+        # -------------------------------------------------------------
+        # 2. k-Correct Policy (k=2 in a row, non-discriminating allowed)
+        # -------------------------------------------------------------
+        if is_truly_resolved:
+            k2_ans1 = (random.random() > p_slip)
+            k2_ans2 = (random.random() > p_slip)
         else:
-            p1_correct = (random.random() < 0.05) # Low lucky chance on discriminating probe!
-        probe_attempts.append({"is_discriminating": True, "is_correct": p1_correct})
+            k2_ans1 = (random.random() < p_lucky)
+            k2_ans2 = (random.random() < p_lucky)
 
-        # Probe 2 (Transfer Probe)
-        if truly_resolved:
-            p2_correct = (random.random() > 0.1)
+        k2_resolved = (k2_ans1 and k2_ans2)
+        results_by_policy["k_Correct_k2"]["false_res"].append(1 if (k2_resolved and not is_truly_resolved) else 0)
+        results_by_policy["k_Correct_k2"]["false_pers"].append(1 if (not k2_resolved and is_truly_resolved) else 0)
+        results_by_policy["k_Correct_k2"]["probes"].append(2)
+
+        # -------------------------------------------------------------
+        # 3. k-Correct Policy (k=3 in a row, non-discriminating allowed)
+        # -------------------------------------------------------------
+        if is_truly_resolved:
+            k3_ans1 = (random.random() > p_slip)
+            k3_ans2 = (random.random() > p_slip)
+            k3_ans3 = (random.random() > p_slip)
         else:
-            p2_correct = (random.random() < 0.05)
-        probe_attempts.append({"is_discriminating": True, "is_correct": p2_correct})
+            k3_ans1 = (random.random() < p_lucky)
+            k3_ans2 = (random.random() < p_lucky)
+            k3_ans3 = (random.random() < p_lucky)
 
-        # Explanation check signature presence
-        explanation_sig = False if truly_resolved else (random.random() < 0.70)
-        delayed_reprobe = True if truly_resolved else (random.random() < 0.05)
+        k3_resolved = (k3_ans1 and k3_ans2 and k3_ans3)
+        results_by_policy["k_Correct_k3"]["false_res"].append(1 if (k3_resolved and not is_truly_resolved) else 0)
+        results_by_policy["k_Correct_k3"]["false_pers"].append(1 if (not k3_resolved and is_truly_resolved) else 0)
+        results_by_policy["k_Correct_k3"]["probes"].append(3)
+
+        # -------------------------------------------------------------
+        # 4. Our Policy (Discriminating Transfer Probes + Explanation Check + Delayed Re-Probe)
+        # -------------------------------------------------------------
+        # Probe 1 (Discriminating Transfer Probe)
+        if is_truly_resolved:
+            p1_corr = (random.random() > p_slip)
+            p2_corr = (random.random() > p_slip)
+            exp_has_bug_sig = (random.random() < 0.05) # 5% residual bug signature in explanation
+            delayed_pass = (random.random() > p_forget)
+        else:
+            p1_corr = (random.random() < 0.08) # Low guess probability on discriminating transfer probe
+            p2_corr = (random.random() < 0.08)
+            exp_has_bug_sig = (random.random() < 0.65) # 65% bug signature in explanation
+            delayed_pass = (random.random() < 0.05)
+
+        probe_attempts = [
+            {"is_discriminating": True, "is_correct": p1_corr},
+            {"is_discriminating": True, "is_correct": p2_corr}
+        ]
 
         our_verdict = evaluator.evaluate_session(
             misconception_id="M_SIM",
             probe_attempts=probe_attempts,
-            explanation_has_signature=explanation_sig,
-            delayed_reprobe_passed=delayed_reprobe
+            explanation_has_signature=exp_has_bug_sig,
+            delayed_reprobe_passed=delayed_pass
         )
 
-        our_probe_counts.append(len(probe_attempts))
-        our_is_resolved = (our_verdict["state"] == ResolutionState.RESOLVED)
+        our_resolved = (our_verdict["state"] == ResolutionState.RESOLVED)
+        results_by_policy["Ours_BKT_Transfer"]["false_res"].append(1 if (our_resolved and not is_truly_resolved) else 0)
+        results_by_policy["Ours_BKT_Transfer"]["false_pers"].append(1 if (not our_resolved and is_truly_resolved) else 0)
+        results_by_policy["Ours_BKT_Transfer"]["probes"].append(2)
 
-        if our_is_resolved and not truly_resolved:
-            our_false_resolutions += 1
-        elif not our_is_resolved and truly_resolved:
-            our_false_persisting += 1
+    summary = {}
+    print("\n================ GENERATIVE LEARNER RESOLUTION SIMULATION (N=2000) ================")
+    header = f"{'Policy Name':25s} | {'False-Res (FP)':15s} | {'False-Pers (FN)':16s} | {'Mean Probes':12s}"
+    print(header)
+    print("-" * len(header))
 
-    naive_false_res_rate = (naive_false_resolutions / n_learners) * 100
-    our_false_res_rate = (our_false_resolutions / n_learners) * 100
-    our_false_pers_rate = (our_false_persisting / n_learners) * 100
-    mean_probes = np.mean(our_probe_counts)
+    for pol, d in results_by_policy.items():
+        fr_mean = float(np.mean(d["false_res"])) * 100
+        fr_ci = bootstrap_ci_rate(d["false_res"])
+        fp_mean = float(np.mean(d["false_pers"])) * 100
+        fp_ci = bootstrap_ci_rate(d["false_pers"])
+        m_probes = float(np.mean(d["probes"]))
 
-    print("\n================ LEARNER RESOLUTION SIMULATION RESULTS (N=500) ================")
-    print(f"Naive Policy False-Resolution Rate (False Positives): {naive_false_res_rate:.2f}%")
-    print(f"Our Policy False-Resolution Rate (False Positives)  : {our_false_res_rate:.2f}%")
-    print(f"Our Policy False-Persisting Rate (False Negatives)  : {our_false_pers_rate:.2f}%")
-    print(f"Mean Probes to Decision                            : {mean_probes:.1f}")
+        summary[pol] = {
+            "false_resolution_rate": fr_mean,
+            "false_resolution_ci": fr_ci,
+            "false_persisting_rate": fp_mean,
+            "false_persisting_ci": fp_ci,
+            "mean_probes": m_probes
+        }
 
-    results = {
-        "n_learners": n_learners,
-        "naive_false_resolution_rate": naive_false_res_rate,
-        "our_false_resolution_rate": our_false_res_rate,
-        "our_false_persisting_rate": our_false_pers_rate,
-        "mean_probes": mean_probes
-    }
+        print(f"{pol:25s} | {fr_mean:5.2f}% [{fr_ci[0]:4.1f}-{fr_ci[1]:4.1f}%] | {fp_mean:5.2f}% [{fp_ci[0]:4.1f}-{fp_ci[1]:4.1f}%] | {m_probes:12.1f}")
 
     with open("evaluation/results/simulation_results.json", "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(summary, f, indent=2)
 
-    return results
+    return summary
 
 if __name__ == "__main__":
-    run_simulation()
+    run_generative_learner_simulation()
