@@ -109,14 +109,20 @@ export default function LearnPage() {
           )}
           {loading && <p style={{ color: '#38bdf8' }}>Connecting to FastAPI ML Engine...</p>}
 
-          {analysisResult && (
+          {analysisResult && analysisResult.error && (
+            <div style={{ background: '#451a03', padding: '1rem', borderRadius: '6px', border: '1px solid #78350f', color: '#f97316' }}>
+              <strong>Error:</strong> {analysisResult.error || analysisResult.reason}
+            </div>
+          )}
+
+          {analysisResult && analysisResult.diagnosis && (
             <div style={{ marginTop: '1rem' }}>
-              <div style={{ background: analysisResult.diagnosis.misconceptionId ? '#451a03' : '#064e3b', padding: '1rem', borderRadius: '6px', marginBottom: '1rem', border: '1px solid #78350f' }}>
+              <div style={{ background: analysisResult.diagnosis?.misconceptionId ? '#451a03' : '#064e3b', padding: '1rem', borderRadius: '6px', marginBottom: '1rem', border: '1px solid #78350f' }}>
                 <h4 style={{ margin: 0 }}>
-                  Verdict: {analysisResult.diagnosis.misconceptionId ? `Misconception Diagnosed (${analysisResult.diagnosis.misconceptionId})` : 'Correct / No Misconception'}
+                  Verdict: {analysisResult.diagnosis?.misconceptionId ? `Misconception Diagnosed (${analysisResult.diagnosis.misconceptionId})` : 'Correct / No Misconception'}
                 </h4>
                 <p style={{ margin: '0.5rem 0 0 0', fontSize: '14px' }}>
-                  Confidence: {(analysisResult.diagnosis.confidence * 100).toFixed(1)}% | Status: {analysisResult.diagnosis.status}
+                  Confidence: {((analysisResult.diagnosis?.confidence || 0) * 100).toFixed(1)}% | Status: {analysisResult.diagnosis?.status || 'N/A'}
                 </p>
               </div>
 
