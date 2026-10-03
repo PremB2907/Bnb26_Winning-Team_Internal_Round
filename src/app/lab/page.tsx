@@ -49,7 +49,7 @@ export default function LabPage() {
                   <td style={{ padding: "0.8rem" }}>{spName}</td>
                   <td style={{ padding: "0.8rem" }}>{(m.accuracy * 100).toFixed(2)}%</td>
                   <td style={{ padding: "0.8rem" }}>{(m.f1 * 100).toFixed(2)}%</td>
-                  <td style={{ padding: "0.8rem" }}>{m.ece.toFixed(4)}</td>
+                  <td style={{ padding: "0.8rem" }}>{m.ece != null ? m.ece.toFixed(4) : "N/A"}</td>
                 </tr>
               ))
             )}
@@ -59,28 +59,34 @@ export default function LabPage() {
 
       {/* Confusable Pair Differentiation */}
       <section style={{ marginBottom: "2.5rem" }}>
-        <h3>2. Top-5 Confusable Pair Differentiation Benchmark</h3>
-        <p style={{ color: "#94a3b8", fontSize: "14px" }}>Headline result: Accuracy improvement after 1 and 2 EIG-selected active probes.</p>
+        <h3>2. Non-Oracle Active Probe Differentiation Benchmark</h3>
+        <p style={{ color: "#94a3b8", fontSize: "14px" }}>Accuracy across simulated response noise levels ($\epsilon \in [0.0, 0.3]$) comparing EIG Probe Selection against Random and Fixed Probes.</p>
         <table style={{ width: "100%", borderCollapse: "collapse", background: "#0f172a", border: "1px solid #1e293b", marginTop: "1rem" }}>
           <thead>
             <tr style={{ background: "#1e293b", textAlign: "left" }}>
-              <th style={{ padding: "0.8rem" }}>Confusable Pair</th>
-              <th style={{ padding: "0.8rem" }}>Final Ans Only</th>
-              <th style={{ padding: "0.8rem" }}>Working Text</th>
-              <th style={{ padding: "0.8rem" }}>+1 Selected Probe</th>
-              <th style={{ padding: "0.8rem" }}>+2 Selected Probes</th>
+              <th style={{ padding: "0.8rem" }}>Noise Level (&epsilon;)</th>
+              <th style={{ padding: "0.8rem" }}>Strategy</th>
+              <th style={{ padding: "0.8rem" }}>0 Probes</th>
+              <th style={{ padding: "0.8rem" }}>+1 Probe</th>
+              <th style={{ padding: "0.8rem" }}>+2 Probes</th>
+              <th style={{ padding: "0.8rem" }}>+3 Probes</th>
             </tr>
           </thead>
           <tbody>
-            {diffData.map((d: any) => (
-              <tr key={d.pair} style={{ borderTop: "1px solid #1e293b" }}>
-                <td style={{ padding: "0.8rem", fontWeight: "bold" }}>`{d.pair}`</td>
-                <td style={{ padding: "0.8rem" }}>{d.ans_only.toFixed(1)}%</td>
-                <td style={{ padding: "0.8rem" }}>{d.working_text.toFixed(1)}%</td>
-                <td style={{ padding: "0.8rem", color: "#10b981", fontWeight: "bold" }}>{d.probe_1.toFixed(1)}%</td>
-                <td style={{ padding: "0.8rem", color: "#38bdf8", fontWeight: "bold" }}>{d.probe_2.toFixed(1)}%</td>
-              </tr>
-            ))}
+            {Array.isArray(diffData) && diffData.map((entry: any) =>
+              Object.entries(entry.strategies || {}).map(([stratName, probs]: [string, any]) => (
+                <tr key={`${entry.epsilon}-${stratName}`} style={{ borderTop: "1px solid #1e293b" }}>
+                  <td style={{ padding: "0.8rem" }}>&epsilon; = {entry.epsilon}</td>
+                  <td style={{ padding: "0.8rem", fontWeight: stratName === "EIG_Selected" ? "bold" : "normal", color: stratName === "EIG_Selected" ? "#38bdf8" : "inherit" }}>
+                    {stratName}
+                  </td>
+                  <td style={{ padding: "0.8rem" }}>{(probs["0"] || 0).toFixed(1)}%</td>
+                  <td style={{ padding: "0.8rem" }}>{(probs["1"] || 0).toFixed(1)}%</td>
+                  <td style={{ padding: "0.8rem", color: stratName === "EIG_Selected" ? "#10b981" : "inherit", fontWeight: stratName === "EIG_Selected" ? "bold" : "normal" }}>{(probs["2"] || 0).toFixed(1)}%</td>
+                  <td style={{ padding: "0.8rem", color: stratName === "EIG_Selected" ? "#38bdf8" : "inherit", fontWeight: stratName === "EIG_Selected" ? "bold" : "normal" }}>{(probs["3"] || 0).toFixed(1)}%</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </section>

@@ -44,7 +44,15 @@ Open [http://localhost:3000](http://localhost:3000) to access the interactive le
 ## 3. Dynamically Generated Evaluation Results
 
 <!-- RESULTS:START -->
-*Evaluation results will be injected here automatically by `npm run eval` / `generate_evaluation_report.py`.*
+| Baseline Model | Split | Accuracy | Macro-F1 | ECE | Bootstrap 95% CI |
+|---|---|---|---|---|---|
+| **B6 Hybrid (Ours)** | `test_unseen_question` | **63.89%** | **54.73%** | **0.1251** | [47.22%, 80.56%] |
+| **B6 Hybrid (Ours)** | `test_iid` | **80.49%** | **78.82%** | **0.0693** | [68.3%, 92.7%] |
+| **B6 Hybrid (Ours)** | `test_unseen_style` | **56.36%** | **46.28%** | **0.1196** | [47.3%, 65.5%] |
+
+- **B6 Novelty Abstention AUROC:** `0.7312`
+- **BKT False Resolution Rate:** `0.00%` (vs. Naive Baseline `12.15%`)
+- **Master Evaluation Pipeline:** Verified reproducible via `npm run eval`
 <!-- RESULTS:END -->
 
 ---

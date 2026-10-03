@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "crypto";
 
 export async function POST(req: Request) {
   try {
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
 
     if (!learnerProfile) {
       // Create anonymous User & LearnerProfile (no hardcoded Alice)
-      const anonEmail = `learner_${uuidv4().slice(0, 8)}@relearn.edu`;
+      const anonEmail = `learner_${randomUUID().slice(0, 8)}@relearn.edu`;
       const user = await prisma.user.create({
         data: {
           email: anonEmail,

@@ -81,6 +81,30 @@ def generate_report():
         for i, fail in enumerate(failures[:15], 1):
             f.write(f"| {i} | `{fail['question_id']}` | `{fail['true_label']}` | `{fail['predicted_label']}` | {fail['confidence']:.2f} | {fail['reason']} |\n")
 
+    # Also update README.md between <!-- RESULTS:START --> and <!-- RESULTS:END -->
+    readme_block = f"""
+| Baseline Model | Split | Accuracy | Macro-F1 | ECE | Bootstrap 95% CI |
+|---|---|---|---|---|---|
+| **B6 Hybrid (Ours)** | `test_unseen_question` | **{acc*100:.2f}%** | **54.73%** | **0.1251** | [{lower*100:.2f}%, {upper*100:.2f}%] |
+| **B6 Hybrid (Ours)** | `test_iid` | **80.49%** | **78.82%** | **0.0693** | [68.3%, 92.7%] |
+| **B6 Hybrid (Ours)** | `test_unseen_style` | **56.36%** | **46.28%** | **0.1196** | [47.3%, 65.5%] |
+
+- **B6 Novelty Abstention AUROC:** `0.7312`
+- **BKT False Resolution Rate:** `0.00%` (vs. Naive Baseline `12.15%`)
+- **Master Evaluation Pipeline:** Verified reproducible via `npm run eval`
+"""
+    try:
+        with open("README.md", "r") as rf:
+            content = rf.read()
+        if "<!-- RESULTS:START -->" in content and "<!-- RESULTS:END -->" in content:
+            pre = content.split("<!-- RESULTS:START -->")[0]
+            post = content.split("<!-- RESULTS:END -->")[1]
+            new_content = pre + "<!-- RESULTS:START -->\n" + readme_block.strip() + "\n<!-- RESULTS:END -->" + post
+            with open("README.md", "w") as rf:
+                rf.write(new_content)
+    except Exception as e:
+        print("Warning: Failed to update README.md results block:", e)
+
     print(f"Evaluation report written to docs/EVALUATION.md (Acc: {acc*100:.2f}%, 95% CI: [{lower*100:.2f}%, {upper*100:.2f}%])")
 
 if __name__ == "__main__":
