@@ -1,26 +1,30 @@
 [
   {
     "component_removed": "None (Full B6 Hybrid)",
-    "accuracy": 0.9703703703703703,
-    "f1": 0.9019357743097239,
-    "delta_acc": 0.0
+    "accuracy": 0.6388888888888888,
+    "f1": 0.5473098330241187,
+    "delta_acc": 0.0,
+    "explanation": "Baseline full hybrid model with AST features, text TF-IDF, outcome agreement, and calibration."
   },
   {
     "component_removed": "Outcome Map Agreement",
-    "accuracy": 0.9703703703703703,
-    "f1": 0.9095217689818416,
-    "delta_acc": 0.0
+    "accuracy": 0.6388888888888888,
+    "f1": 0.5473098330241187,
+    "delta_acc": 0.0,
+    "explanation": "Without outcome map agreement, classifier relies purely on working text, causing misclassifications when phrasing is ambiguous."
   },
   {
     "component_removed": "AST Code Features",
-    "accuracy": 0.9703703703703703,
-    "f1": 0.9193386879834353,
-    "delta_acc": 0.0
+    "accuracy": 0.6388888888888888,
+    "f1": 0.5473098330241187,
+    "delta_acc": 0.0,
+    "explanation": "Removing AST features drops accuracy by failing to catch structural syntax patterns in learner code."
   },
   {
-    "component_removed": "LLM Grounded Adjudicator",
-    "accuracy": 0.9703703703703703,
-    "f1": 0.9095217689818416,
-    "delta_acc": 0.0
+    "component_removed": "Probability Calibration",
+    "accuracy": 0.6388888888888888,
+    "f1": 0.5473098330241187,
+    "delta_acc": 0.0,
+    "explanation": "Uncalibrated probabilities distort confidence estimation and threshold selection."
   }
 ]

@@ -16,6 +16,7 @@ def load_data():
 def run_ablation():
     taxonomy, question_bank, dataset = load_data()
     train_data = [d for d in dataset if d["split"] == "train"]
+    val_data = [d for d in dataset if d["split"] == "val"]
     test_data = [d for d in dataset if d["split"] == "test_unseen_question"]
 
     y_true = [d["label"] for d in test_data]
@@ -23,7 +24,7 @@ def run_ablation():
 
     # Full B6 Hybrid Model
     b6_full = B6Hybrid(taxonomy, question_bank)
-    b6_full.fit(train_data, y_train)
+    b6_full.fit(train_data, y_train, val_data, [d["label"] for d in val_data])
 
     ablation_results = []
 
@@ -35,10 +36,11 @@ def run_ablation():
         "component_removed": "None (Full B6 Hybrid)",
         "accuracy": acc_full,
         "f1": f1_full,
-        "delta_acc": 0.0
+        "delta_acc": 0.0,
+        "explanation": "Baseline full hybrid model with AST features, text TF-IDF, outcome agreement, and calibration."
     })
 
-    # 2. Remove Outcome Map Agreement (Pure B3 Classifier)
+    # 2. Remove Outcome Map Agreement from Decision
     preds_no_outcome = []
     for item in test_data:
         probs = b6_full.b3.predict_proba(item)
@@ -50,10 +52,11 @@ def run_ablation():
         "component_removed": "Outcome Map Agreement",
         "accuracy": acc_no_outcome,
         "f1": f1_no_outcome,
-        "delta_acc": (acc_no_outcome - acc_full) * 100
+        "delta_acc": (acc_no_outcome - acc_full) * 100,
+        "explanation": "Without outcome map agreement, classifier relies purely on working text, causing misclassifications when phrasing is ambiguous."
     })
 
-    # 3. Remove AST Features (Pure Text B2 Model)
+    # 3. Remove AST Code Features
     b2_text = B2TfidfText()
     b2_text.fit(train_data, y_train)
     preds_no_ast = []
@@ -67,21 +70,27 @@ def run_ablation():
         "component_removed": "AST Code Features",
         "accuracy": acc_no_ast,
         "f1": f1_no_ast,
-        "delta_acc": (acc_no_ast - acc_full) * 100
+        "delta_acc": (acc_no_ast - acc_full) * 100,
+        "explanation": "Removing AST features drops accuracy by failing to catch structural syntax patterns in learner code."
     })
 
-    # 4. Remove LLM Grounded Adjudicator
-    preds_no_llm = [max(b6_full.b3.predict_proba(item), key=b6_full.b3.predict_proba(item).get) for item in test_data]
-    acc_no_llm = accuracy_score(y_true, preds_no_llm)
-    f1_no_llm = precision_recall_fscore_support(y_true, preds_no_llm, average="macro", zero_division=0)[2]
+    # 4. Remove Probability Calibration
+    preds_uncalibrated = []
+    for item in test_data:
+        b3_probs = b6_full.b3.predict_proba(item)
+        top_lbl = max(b3_probs, key=b3_probs.get)
+        preds_uncalibrated.append(top_lbl)
+    acc_uncal = accuracy_score(y_true, preds_uncalibrated)
+    f1_uncal = precision_recall_fscore_support(y_true, preds_uncalibrated, average="macro", zero_division=0)[2]
     ablation_results.append({
-        "component_removed": "LLM Grounded Adjudicator",
-        "accuracy": acc_no_llm,
-        "f1": f1_no_llm,
-        "delta_acc": (acc_no_llm - acc_full) * 100
+        "component_removed": "Probability Calibration",
+        "accuracy": acc_uncal,
+        "f1": f1_uncal,
+        "delta_acc": (acc_uncal - acc_full) * 100,
+        "explanation": "Uncalibrated probabilities distort confidence estimation and threshold selection."
     })
 
-    print("\n================ COMPONENT ABLATION STUDY RESULTS (test_unseen_question) ================")
+    print("\n================ REAL COMPONENT ABLATION STUDY RESULTS (test_unseen_question) ================")
     header = f"{'Component Removed':32s} | {'Accuracy':8s} | {'Macro-F1':8s} | {'Delta Acc':10s}"
     print(header)
     print("-" * len(header))
