@@ -2,9 +2,10 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export default async function TracePage({ params }: { params: { sessionId: string } }) {
+export default async function TracePage({ params }: { params: Promise<{ sessionId: string }> }) {
+  const resolvedParams = await params;
   const session = await prisma.learningSession.findUnique({
-    where: { id: params.sessionId },
+    where: { id: resolvedParams.sessionId },
     include: {
       question: true,
       responses: true,
