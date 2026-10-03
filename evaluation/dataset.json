@@ -1,0 +1,42 @@
+[
+  {
+    "id": "eval_1",
+    "questionContent": "if (x = 10) { print('A') } else { print('B') }",
+    "expectedAnswer": "A",
+    "learnerResponse": "It prints B because x is not equal to 10 initially.",
+    "groundTruthMisconception": "m_prog_1",
+    "expectedStatus": "DIAGNOSED"
+  },
+  {
+    "id": "eval_2",
+    "questionContent": "x = 10; if x > 5: print('A') else: print('B')",
+    "expectedAnswer": "A",
+    "learnerResponse": "B",
+    "groundTruthMisconception": "m_prog_4",
+    "expectedStatus": "DIAGNOSED"
+  },
+  {
+    "id": "eval_3",
+    "questionContent": "Simplify: 5 - (2x + 3)",
+    "expectedAnswer": "-2x + 2",
+    "learnerResponse": "-2x + 8",
+    "groundTruthMisconception": "m_alg_1",
+    "expectedStatus": "DIAGNOSED"
+  },
+  {
+    "id": "eval_4",
+    "questionContent": "A car travels on a straight highway at a constant 60 mph. What is its acceleration?",
+    "expectedAnswer": "0",
+    "learnerResponse": "60",
+    "groundTruthMisconception": "m_phy_1",
+    "expectedStatus": "DIAGNOSED"
+  },
+  {
+    "id": "eval_novel_1",
+    "questionContent": "Solve for x: 3x = 12",
+    "expectedAnswer": "x = 4",
+    "learnerResponse": "I think the computer ate my answer.",
+    "groundTruthMisconception": null,
+    "expectedStatus": "NOVEL_OR_UNCERTAIN"
+  }
+]

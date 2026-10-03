@@ -1,69 +1,108 @@
-import { DiagnosisResult, LearnerState, Modality, Question, Misconception } from '../types';
-import { programmingMisconceptions } from '../data/programmingMisconceptions';
+import { PrismaClient } from '@prisma/client';
+import { LLMAnalyzer } from './SemanticAnalyzer';
+
+const prisma = new PrismaClient();
+const analyzer = new LLMAnalyzer();
+
+export type DiagnosisStatus = 'DIAGNOSED' | 'AMBIGUOUS' | 'NOVEL_OR_UNCERTAIN';
+
+export interface DiagnosisCandidate {
+  misconceptionId: string;
+  score: number;
+  evidence: string[];
+  missingEvidence: string[];
+  confidence: number;
+}
+
+export interface EngineDiagnosisResult {
+  status: DiagnosisStatus;
+  candidates: DiagnosisCandidate[];
+  trace: string[];
+  selectedMisconceptionId?: string;
+  discriminatingQuestion?: any;
+}
 
 export class DiagnoserEngine {
   
-  // A mock deterministic method for demo purposes.
-  // In a real scenario, this would call an LLM with semantic reasoning if rules fail.
   async analyzeResponse(
-    question: Question,
+    questionId: string,
     learnerResponse: string,
-    learnerState: LearnerState
-  ): Promise<DiagnosisResult> {
+    learnerId: string
+  ): Promise<EngineDiagnosisResult> {
+    const trace: string[] = ['Response received'];
     
-    // Check for correct answer
-    if (learnerResponse.trim().toLowerCase() === question.expected_answer.toLowerCase()) {
-      return {
-        diagnosis: "Answer is correct. No misconception detected.",
-        misconception_id: null,
-        confidence: 1.0,
-        evidence: ["Learner provided the exact expected answer."],
-        alternative_explanations: [],
-        severity: "low",
-        recommended_intervention_type: "practice",
-        status: "diagnosed"
-      };
+    // Fetch question and concept
+    const question = await prisma.question.findUnique({
+      where: { id: questionId },
+      include: { concept: { include: { misconceptions: true } } }
+    });
+
+    if (!question) throw new Error("Question not found");
+    trace.push(`Concept identified: ${question.concept.name}`);
+
+    // Check correctness (exact match for demo, but SemanticAnalyzer handles reasoning in real app)
+    if (learnerResponse.trim().toLowerCase() === question.expectedAnswer.toLowerCase()) {
+      trace.push('Response classified as correct');
+      return { status: 'DIAGNOSED', candidates: [], trace };
     }
 
-    // Demo deterministic rule matching based on question and response
-    if (question.id === 'Q_PROG_M01_01' && learnerResponse.trim().toUpperCase() === 'B') {
-      const misconception = programmingMisconceptions.find(m => m.id === 'PROG_M01');
+    trace.push('Response classified as incorrect');
+
+    // Prepare candidates for semantic analysis
+    const candidateData = question.concept.misconceptions.map(m => ({
+      id: m.id,
+      triggers: JSON.parse(m.triggerPatterns)
+    }));
+
+    // Semantic analysis
+    trace.push('Running semantic analysis on reasoning');
+    const analysis = await analyzer.analyze(question.content, question.expectedAnswer, learnerResponse, candidateData);
+
+    const candidates: DiagnosisCandidate[] = analysis.matchedMisconceptionIds.map(mId => ({
+      misconceptionId: mId,
+      score: analysis.confidence,
+      evidence: [analysis.reasoning],
+      missingEvidence: [],
+      confidence: analysis.confidence
+    }));
+
+    // Differentiation logic
+    if (candidates.length === 0) {
+      trace.push('No candidates matched. Marking as NOVEL_OR_UNCERTAIN');
+      return { status: 'NOVEL_OR_UNCERTAIN', candidates, trace };
+    }
+
+    if (candidates.length > 1 || candidates[0].confidence < 0.8) {
+      trace.push('Multiple candidates or low confidence. Marking as AMBIGUOUS to ask discriminating question');
       
+      // Find a discriminating question
+      const discQuestions = await prisma.question.findMany({
+        where: {
+          conceptId: question.concept.id,
+          isDiscriminatingFor: { not: null }
+        }
+      });
+      
+      const discQuestion = discQuestions.find(q => {
+        const triggers = JSON.parse(q.isDiscriminatingFor || '[]');
+        return candidates.some(c => triggers.includes(c.misconceptionId));
+      });
+
       return {
-        diagnosis: "Learner is incorrectly interpreting the condition as x < 5.",
-        misconception_id: misconception?.id || null,
-        confidence: 0.94,
-        evidence: [
-          "The learner selected the branch opposite to the evaluated condition.",
-          "Condition was x > 5 and x was 10, meaning it is true, but learner output 'B' which is the false branch."
-        ],
-        alternative_explanations: [
-          "Learner might not understand indentation rules (unlikely in this context)",
-          "Learner might have misread the value of x as being less than 5"
-        ],
-        severity: "high",
-        recommended_intervention_type: "micro-explanation",
-        status: "diagnosed"
+        status: 'AMBIGUOUS',
+        candidates,
+        trace,
+        discriminatingQuestion: discQuestion
       };
     }
 
-    // Generic fallback for unknown errors
+    trace.push(`Targeted misconception selected: ${candidates[0].misconceptionId}`);
     return {
-      diagnosis: "Incorrect answer due to undetermined error.",
-      misconception_id: null,
-      confidence: 0.4,
-      evidence: ["Answer did not match expected, and did not match known misconception signatures."],
-      alternative_explanations: ["Calculation error", "Careless mistake"],
-      severity: "medium",
-      recommended_intervention_type: "hint",
-      status: "needs_discrimination"
+      status: 'DIAGNOSED',
+      candidates,
+      selectedMisconceptionId: candidates[0].misconceptionId,
+      trace
     };
-  }
-
-  generateIntervention(misconceptionId: string) {
-    const misconception = programmingMisconceptions.find(m => m.id === misconceptionId);
-    if (!misconception || misconception.interventions.length === 0) return null;
-    return misconception.interventions[0]; // pick first for simplicity
   }
 }
 

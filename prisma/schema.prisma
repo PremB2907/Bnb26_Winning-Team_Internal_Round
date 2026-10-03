@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id             String           @id @default(uuid())
+  email          String           @unique
+  name           String?
+  createdAt      DateTime         @default(now())
+  learnerProfile LearnerProfile?
+}
+
+model LearnerProfile {
+  id                   String                 @id @default(uuid())
+  userId               String                 @unique
+  user                 User                   @relation(fields: [userId], references: [id])
+  masteryRecords       MasteryRecord[]
+  misconceptionHistory MisconceptionHistory[]
+  learningSessions     LearningSession[]
+  responses            Response[]
+}
+
+model Domain {
+  id            String          @id @default(uuid())
+  name          String          @unique
+  description   String?
+  concepts      Concept[]
+  misconceptions Misconception[]
+}
+
+model Concept {
+  id              String          @id @default(uuid())
+  domainId        String
+  domain          Domain          @relation(fields: [domainId], references: [id])
+  name            String
+  description     String?
+  misconceptions  Misconception[]
+  questions       Question[]
+  masteryRecords  MasteryRecord[]
+}
+
+model Misconception {
+  id                        String                 @id @default(uuid())
+  domainId                  String
+  domain                    Domain                 @relation(fields: [domainId], references: [id])
+  conceptId                 String
+  concept                   Concept                @relation(fields: [conceptId], references: [id])
+  name                      String
+  description               String
+  correctReasoning          String
+  incorrectReasoningPatterns String                // JSON string array
+  triggerPatterns           String                 // JSON string array
+  severity                  String                 // LOW, MEDIUM, HIGH
+  interventions             InterventionTemplate[]
+  history                   MisconceptionHistory[]
+  diagnoses                 Diagnosis[]
+}
+
+model Question {
+  id                      String                @id @default(uuid())
+  conceptId               String
+  concept                 Concept               @relation(fields: [conceptId], references: [id])
+  type                    String                // TEXT, CODE, IMAGE, MCQ
+  content                 String
+  expectedAnswer          String
+  isVerificationFor       String?               // Optional Misconception ID if this is a verification question
+  isDiscriminatingFor     String?               // Optional JSON of Misconception IDs if this discriminates between candidates
+  responses               Response[]
+  verificationAttempts    VerificationAttempt[]
+  learningSessions        LearningSession[]
+}
+
+model InterventionTemplate {
+  id              String          @id @default(uuid())
+  misconceptionId String
+  misconception   Misconception   @relation(fields: [misconceptionId], references: [id])
+  type            String
+  content         String
+  interventions   Intervention[]
+}
+
+model LearningSession {
+  id             String          @id @default(uuid())
+  learnerId      String
+  learner        LearnerProfile  @relation(fields: [learnerId], references: [id])
+  questionId     String
+  question       Question        @relation(fields: [questionId], references: [id])
+  startTime      DateTime        @default(now())
+  endTime        DateTime?
+  responses      Response[]
+  diagnoses      Diagnosis[]
+  interventions  Intervention[]
+  verification   VerificationAttempt?
+}
+
+model Response {
+  id               String          @id @default(uuid())
+  sessionId        String
+  session          LearningSession @relation(fields: [sessionId], references: [id])
+  learnerId        String
+  learner          LearnerProfile  @relation(fields: [learnerId], references: [id])
+  questionId       String
+  question         Question        @relation(fields: [questionId], references: [id])
+  content          String          // The raw response text/code/image_url
+  modality         String
+  submittedAt      DateTime        @default(now())
+  isCorrect        Boolean
+  extractedReasoning String?
+}
+
+model Diagnosis {
+  id                   String          @id @default(uuid())
+  sessionId            String
+  session              LearningSession @relation(fields: [sessionId], references: [id])
+  misconceptionId      String?
+  misconception        Misconception?  @relation(fields: [misconceptionId], references: [id])
+  status               String          // DIAGNOSED, AMBIGUOUS, NOVEL_OR_UNCERTAIN
+  confidence           Float
+  evidence             String          // JSON string array
+  missingEvidence      String?         // JSON string array for discrimination
+  createdAt            DateTime        @default(now())
+}
+
+model Intervention {
+  id                   String                 @id @default(uuid())
+  sessionId            String
+  session              LearningSession        @relation(fields: [sessionId], references: [id])
+  templateId           String
+  template             InterventionTemplate   @relation(fields: [templateId], references: [id])
+  deliveredAt          DateTime               @default(now())
+}
+
+model VerificationAttempt {
+  id               String          @id @default(uuid())
+  sessionId        String          @unique
+  session          LearningSession @relation(fields: [sessionId], references: [id])
+  questionId       String
+  question         Question        @relation(fields: [questionId], references: [id])
+  isCorrect        Boolean
+  resolutionStatus String          // RESOLVED, PARTIALLY_RESOLVED, PERSISTING, UNCERTAIN
+  confidence       Float
+  evidence         String?
+  createdAt        DateTime        @default(now())
+}
+
+model MasteryRecord {
+  id             String          @id @default(uuid())
+  learnerId      String
+  learner        LearnerProfile  @relation(fields: [learnerId], references: [id])
+  conceptId      String
+  concept        Concept         @relation(fields: [conceptId], references: [id])
+  masteryLevel   Float           // 0.0 to 1.0
+  lastUpdated    DateTime        @default(now())
+  
+  @@unique([learnerId, conceptId])
+}
+
+model MisconceptionHistory {
+  id               String          @id @default(uuid())
+  learnerId        String
+  learner          LearnerProfile  @relation(fields: [learnerId], references: [id])
+  misconceptionId  String
+  misconception    Misconception   @relation(fields: [misconceptionId], references: [id])
+  occurrences      Int             @default(0)
+  status           String          // PERSISTING, PARTIALLY_RESOLVED, RESOLVED
+  lastEncountered  DateTime        @default(now())
+  
+  @@unique([learnerId, misconceptionId])
+}
