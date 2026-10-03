@@ -1,6 +1,6 @@
 {
-  "name": "tmp_next",
-  "version": "0.1.0",
+  "name": "relearn",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "PYTHONPATH=. ml/venv/bin/python ml/scripts/test_selector_bayes.py && PYTHONPATH=. ml/venv/bin/python ml/scripts/test_resolution.py",
+    "typecheck": "tsc --noEmit",
+    "test": "PYTHONPATH=. ml/venv/bin/python ml/scripts/test_selector_bayes.py && PYTHONPATH=. ml/venv/bin/python ml/scripts/test_resolution.py && PYTHONPATH=. ml/venv/bin/python ml/scripts/test_adversarial.py",
     "eval": "bash ml/scripts/run_full_eval.sh",
     "postinstall": "prisma skills sync || exit 0"
   },
