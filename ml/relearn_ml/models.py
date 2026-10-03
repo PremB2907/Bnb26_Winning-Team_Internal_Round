@@ -110,6 +110,9 @@ class B6Hybrid:
             top_k = [{"id": k, "bug_model": self.tax_dict[k]["bug_model"]} for k, p in sorted_cands[:3] if k in self.tax_dict]
             q_prompt = self.q_dict[q_id]["prompt"] if q_id in self.q_dict else "Code question"
             llm_res = self.llm.adjudicate(q_prompt, item["working_text"], top_k)
-            return llm_res["predicted_label"], llm_res["confidence"]
+            if llm_res.get("status") == "SUCCESS" and "predicted_label" in llm_res:
+                return llm_res["predicted_label"], llm_res.get("confidence", 0.5)
+            # Fall back to classifier top prediction if LLM is UNAVAILABLE
+            return top_lbl, calibrated_conf
 
         return top_lbl, calibrated_conf

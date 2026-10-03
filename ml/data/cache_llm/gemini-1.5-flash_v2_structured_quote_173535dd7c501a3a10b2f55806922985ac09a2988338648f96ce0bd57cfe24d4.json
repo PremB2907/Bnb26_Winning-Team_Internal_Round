@@ -1,0 +1,11 @@
+{
+  "status": "SUCCESS",
+  "adjudicated": true,
+  "model_used": "gemini-1.5-flash",
+  "predicted_label": "M_ALIAS_COPY",
+  "confidence": 0.91,
+  "evidence_spans": [
+    "b = a"
+  ],
+  "reasoning": "Thinks copy"
+}
