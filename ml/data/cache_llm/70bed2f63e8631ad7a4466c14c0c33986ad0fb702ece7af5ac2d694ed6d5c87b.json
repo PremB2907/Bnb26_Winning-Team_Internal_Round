@@ -1,0 +1,8 @@
+{
+  "predicted_label": "M_ALIAS_COPY",
+  "evidence_spans": [
+    "sum_to(3) calculates 3+2+1=6."
+  ],
+  "confidence": 0.85,
+  "reasoning": "Learner reasoning aligns with M_ALIAS_COPY bug model."
+}

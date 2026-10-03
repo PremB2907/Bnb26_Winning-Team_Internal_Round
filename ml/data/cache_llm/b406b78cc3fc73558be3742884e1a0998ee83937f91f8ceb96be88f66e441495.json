@@ -1,0 +1,8 @@
+{
+  "predicted_label": "M_OFF_BY_ONE_RANGE",
+  "evidence_spans": [
+    "5 is not 1 and 5 is not 2, so "
+  ],
+  "confidence": 0.85,
+  "reasoning": "Learner reasoning aligns with M_OFF_BY_ONE_RANGE bug model."
+}

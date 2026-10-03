@@ -1,0 +1,8 @@
+{
+  "predicted_label": "M_ALIAS_COPY",
+  "evidence_spans": [
+    "x = 10 sets x to 10 which is t"
+  ],
+  "confidence": 0.85,
+  "reasoning": "Learner reasoning aligns with M_ALIAS_COPY bug model."
+}

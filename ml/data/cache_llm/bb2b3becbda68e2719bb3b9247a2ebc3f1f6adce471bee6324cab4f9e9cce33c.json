@@ -1,0 +1,8 @@
+{
+  "predicted_label": "M_OFF_BY_ONE_RANGE",
+  "evidence_spans": [
+    "a=b puts 2 in a, then b=a puts"
+  ],
+  "confidence": 0.85,
+  "reasoning": "Learner reasoning aligns with M_OFF_BY_ONE_RANGE bug model."
+}

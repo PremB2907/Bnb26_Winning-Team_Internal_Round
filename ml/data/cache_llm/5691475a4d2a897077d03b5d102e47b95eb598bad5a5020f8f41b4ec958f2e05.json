@@ -1,0 +1,8 @@
+{
+  "predicted_label": "M_ALIAS_COPY",
+  "evidence_spans": [
+    "Answer is None. Because Thinks"
+  ],
+  "confidence": 0.85,
+  "reasoning": "Learner reasoning aligns with M_ALIAS_COPY bug model."
+}

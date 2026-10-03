@@ -1,0 +1,8 @@
+{
+  "predicted_label": "M_SWAP_NAIVE",
+  "evidence_spans": [
+    "It is definitely 6. In Python,"
+  ],
+  "confidence": 0.85,
+  "reasoning": "Learner reasoning aligns with M_SWAP_NAIVE bug model."
+}

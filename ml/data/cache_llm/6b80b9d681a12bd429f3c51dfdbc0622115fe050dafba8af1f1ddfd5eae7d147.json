@@ -1,0 +1,8 @@
+{
+  "predicted_label": "M_ASSIGN_EQ",
+  "evidence_spans": [
+    "Answer is 5. Because Thinks re"
+  ],
+  "confidence": 0.85,
+  "reasoning": "Learner reasoning aligns with M_ASSIGN_EQ bug model."
+}

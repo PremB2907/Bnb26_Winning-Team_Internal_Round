@@ -1,0 +1,8 @@
+{
+  "predicted_label": "M_OFF_BY_ONE_RANGE",
+  "evidence_spans": [
+    "The range object generates num"
+  ],
+  "confidence": 0.85,
+  "reasoning": "Learner reasoning aligns with M_OFF_BY_ONE_RANGE bug model."
+}
