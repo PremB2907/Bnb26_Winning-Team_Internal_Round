@@ -2,8 +2,8 @@
 
 | Strategy | Accuracy | Precision | Recall |
 |----------|----------|-----------|--------|
-| A: Exact Deterministic Matching | 60.0% | 65.0% | 50.0% |
-| B: Candidate Scoring | 82.0% | 80.0% | 85.0% |
-| C: Candidate Scoring + Discriminating Questions | 91.0% | 88.0% | 92.0% |
+| A: Exact Deterministic Matching | 89.1% | 97.8% | 100.0% |
+| B: Candidate Scoring | 89.1% | 97.8% | 100.0% |
+| C: Candidate Scoring + Discriminating Questions | 98.2% | 97.8% | 100.0% |
 
-**Conclusion**: Differentiation using discriminating questions (Strategy C) significantly improves the ability to isolate specific misconceptions compared to basic candidate scoring or exact matching.
+**Conclusion**: Strategy C correctly flags 5 cases as AMBIGUOUS to trigger discriminating questions, raising overall accuracy compared to blindly picking a candidate.
