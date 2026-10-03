@@ -10,6 +10,7 @@ export default function LearnPage() {
   const [workingText, setWorkingText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [sessionId, setSessionId] = useState<string>('');
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   useEffect(() => {
     // Start session and fetch questions
