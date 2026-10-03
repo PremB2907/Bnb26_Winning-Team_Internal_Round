@@ -1,0 +1,132 @@
+misconceptions:
+  - id: M_ASSIGN_EQ
+    name: Assignment vs Equality Comparison
+    concept: Variables & Operators
+    description: Confuses single equals `=` (assignment) with double equals `==` (equality comparison).
+    correct_model: "`=` assigns a value to a variable, while `==` evaluates whether two values are equal and returns a boolean."
+    bug_model: "Thinks `=` evaluates equality inside conditions or that `==` assigns values."
+    severity: HIGH
+    prerequisites: ["variables", "booleans"]
+    common_surface_forms: ["if x = 5:", "x = 5 checks if x is 5", "using = to test equality"]
+    confusable_with: ["M_FALSY_CONFUSION"]
+
+  - id: M_OFF_BY_ONE_RANGE
+    name: Inclusive Upper Bound in range()
+    concept: Control Flow & Loops
+    description: Believes `range(start, stop)` includes the `stop` boundary value.
+    correct_model: "`range(a, b)` generates numbers from `a` up to `b - 1` (stop bound is exclusive)."
+    bug_model: "Thinks `range(1, 5)` produces `[1, 2, 3, 4, 5]` including the upper limit."
+    severity: MEDIUM
+    prerequisites: ["loops", "indexing"]
+    common_surface_forms: ["range(1, 5) goes 1 to 5", "range(n) has n+1 elements"]
+    confusable_with: ["M_ALIAS_COPY"]
+
+  - id: M_ALIAS_COPY
+    name: Assignment Creates Independent List Copy
+    concept: Data Structures & References
+    description: Believes assigning a list `b = a` creates a separate, independent copy of the list.
+    correct_model: "`b = a` binds `b` to the same object in memory as `a`. Mutating `b` mutates `a`."
+    bug_model: "Thinks `b = a` clones list contents so modifying `b` leaves `a` unchanged."
+    severity: HIGH
+    prerequisites: ["lists", "references"]
+    common_surface_forms: ["b = a makes a new list", "modifying b won't change a"]
+    confusable_with: ["M_STR_MUTABLE"]
+
+  - id: M_SCOPE_LEAK
+    name: Function Local Variable Global Accessibility
+    concept: Functions & Scope
+    description: Believes variables assigned inside a function remain accessible in the outer scope after function execution.
+    correct_model: "Variables defined inside a function scope are local and destroyed when the function returns."
+    bug_model: "Thinks variables created inside a function can be accessed directly outside without returning them."
+    severity: HIGH
+    prerequisites: ["functions", "scope"]
+    common_surface_forms: ["variable x is accessible outside def", "x was defined in function so it exists"]
+    confusable_with: ["M_PRINT_IS_RETURN"]
+
+  - id: M_PRINT_IS_RETURN
+    name: Print Statement Function Return Equivalence
+    concept: Functions & Returns
+    description: Confuses printing a value with returning a value from a function.
+    correct_model: "`print()` displays text on standard output and returns `None`. `return` sends a value back to the caller."
+    bug_model: "Thinks `print(x)` inside a function allows `res = my_func()` to store `x` instead of `None`."
+    severity: HIGH
+    prerequisites: ["functions", "return_values"]
+    common_surface_forms: ["function printed it so value is saved", "print returns the result"]
+    confusable_with: ["M_RECURSION_NO_RETURN"]
+
+  - id: M_STR_MUTABLE
+    name: String In-Place Mutation
+    concept: Data Types & Immutability
+    description: Believes string methods like `.upper()` or `.replace()` modify the original string in place.
+    correct_model: "Strings in Python are immutable. Methods like `s.upper()` return a new string and leave `s` untouched."
+    bug_model: "Thinks `s.upper()` changes string `s` directly without reassignment `s = s.upper()`."
+    severity: MEDIUM
+    prerequisites: ["strings", "immutability"]
+    common_surface_forms: ["s.upper() changes s", "strings can be modified in place"]
+    confusable_with: ["M_ALIAS_COPY"]
+
+  - id: M_OR_CHAIN
+    name: Natural Language Logical OR Precedence
+    concept: Booleans & Logic
+    description: Believes `x == 1 or 2` checks whether `x` is equal to 1 or equal to 2.
+    correct_model: "`x == 1 or 2` evaluates `(x == 1) or bool(2)`. Non-zero numbers like `2` are truthy, so the expression always evaluates to `True` or `2`."
+    bug_model: "Thinks `x == 1 or 2` is shorthand for `x == 1 or x == 2`."
+    severity: HIGH
+    prerequisites: ["booleans", "logical_operators"]
+    common_surface_forms: ["x == 1 or 2 checks both numbers", "or chains values to compare"]
+    confusable_with: ["M_FALSY_CONFUSION"]
+
+  - id: M_SWAP_NAIVE
+    name: Sequential Variable Swap Without Temp
+    concept: Variables & Memory State
+    description: Believes sequential assignments `a = b; b = a` swaps the values of `a` and `b`.
+    correct_model: "`a = b` overwrites the original value of `a`. Subsequent `b = a` just assigns `b` its own value."
+    bug_model: "Thinks Python remembers `a`'s old value automatically during `a = b; b = a`."
+    severity: MEDIUM
+    prerequisites: ["variables", "assignment"]
+    common_surface_forms: ["a=b then b=a swaps them", "no need for temp or tuple unpacking"]
+    confusable_with: ["M_ALIAS_COPY"]
+
+  - id: M_ACC_NOT_RESET
+    name: Accumulator Outer Loop Scope Leak
+    concept: Loops & State Management
+    description: Fails to reset accumulator variables inside outer loops when processing nested structures.
+    correct_model: "Accumulators used for inner loop computations must be reset inside the outer loop body before each inner iteration."
+    bug_model: "Thinks initializing accumulator once before outer loop resets it automatically for each inner loop iteration."
+    severity: MEDIUM
+    prerequisites: ["nested_loops", "accumulators"]
+    common_surface_forms: ["total keeps accumulating across outer loop", "init outside outer loop works"]
+    confusable_with: ["M_SCOPE_LEAK"]
+
+  - id: M_FALSY_CONFUSION
+    name: Falsy Value Equivalence & Identity
+    concept: Booleans & Types
+    description: Equates empty containers `[]`, `""`, `0`, and `None` as identical objects or types.
+    correct_model: "While empty containers, 0, and None all evaluate to False in boolean contexts, they are distinct objects of different types."
+    bug_model: "Thinks `[] == None` or `0 is False` is True because they are all falsy."
+    severity: MEDIUM
+    prerequisites: ["booleans", "types"]
+    common_surface_forms: ["[] is None is True", "0 equals empty string"]
+    confusable_with: ["M_ASSIGN_EQ", "M_OR_CHAIN"]
+
+  - id: M_INT_DIV
+    name: Integer Division & Truncation Confusion
+    concept: Operators & Math
+    description: Confuses float division `/` with floor division `//` and floor vs truncation for negative numbers.
+    correct_model: "`/` performs float division. `//` performs floor division (rounding down towards negative infinity)."
+    bug_model: "Thinks `/` truncates decimals or that `-7 // 2` evaluates to `-3` (truncation) instead of `-4` (floor)."
+    severity: LOW
+    prerequisites: ["operators", "types"]
+    common_surface_forms: ["7 / 2 returns 3", "-7 // 2 is -3"]
+    confusable_with: ["M_OFF_BY_ONE_RANGE"]
+
+  - id: M_RECURSION_NO_RETURN
+    name: Unreturned Recursive Call Result
+    concept: Recursion & Control Flow
+    description: Omits `return` keyword in front of recursive calls, expecting the inner returned value to automatically bubble up.
+    correct_model: "Recursive function calls return values to their immediate caller. To return the value up the stack, the call must be returned explicitly (`return helper(...)`)."
+    bug_model: "Thinks returning a value in the base case automatically completes the top-level function return."
+    severity: HIGH
+    prerequisites: ["functions", "recursion"]
+    common_surface_forms: ["recursive call returns automatically", "missing return in recursive step"]
+    confusable_with: ["M_PRINT_IS_RETURN"]
