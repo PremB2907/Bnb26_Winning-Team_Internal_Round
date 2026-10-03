@@ -9,9 +9,17 @@ export default function LearnPage() {
   const [learnerResponse, setLearnerResponse] = useState<string>('');
   const [workingText, setWorkingText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [sessionId, setSessionId] = useState<string>('');
 
   useEffect(() => {
+    // Start session and fetch questions
+    fetch('/api/session/start', { method: 'POST' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.sessionId) setSessionId(data.sessionId);
+      })
+      .catch((err) => console.error(err));
+
     fetch('/api/questions')
       .then((res) => res.json())
       .then((data) => {
@@ -31,15 +39,31 @@ export default function LearnPage() {
   const handleAnalyze = async () => {
     setLoading(true);
     setAnalysisResult(null);
+
+    let activeSessionId = sessionId;
+    if (!activeSessionId) {
+      try {
+        const startRes = await fetch('/api/session/start', { method: 'POST' });
+        const startData = await startRes.json();
+        if (startData.sessionId) {
+          activeSessionId = startData.sessionId;
+          setSessionId(activeSessionId);
+        }
+      } catch (e) {
+        console.error("Failed to start session:", e);
+      }
+    }
+
     try {
       const res = await fetch('/api/response/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sessionId: activeSessionId,
           questionId: currentQ.id,
           learnerResponse,
           workingText: workingText || learnerResponse,
-          code: currentQ.content,
+          learnerCode: currentQ.content,
           modality: 'TEXT'
         })
       });
