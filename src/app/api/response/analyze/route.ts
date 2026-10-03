@@ -4,40 +4,37 @@ import { prisma } from "@/lib/db";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { questionId, learnerResponse, workingText, code, modality } = body;
+    const { sessionId, questionId, learnerResponse, workingText, learnerCode, modality } = body;
 
-    // 1. Get or create demo User & LearnerProfile
-    let user = await prisma.user.findFirst({ where: { email: "learner@relearn.edu" } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { email: "learner@relearn.edu", name: "Alice Learner" },
-      });
+    if (!sessionId || !questionId) {
+      return NextResponse.json({ error: "Missing sessionId or questionId" }, { status: 400 });
     }
 
-    let profile = await prisma.learnerProfile.findFirst({ where: { userId: user.id } });
-    if (!profile) {
-      profile = await prisma.learnerProfile.create({ data: { userId: user.id } });
-    }
-
-    // 2. Fetch Question
-    const question = await prisma.question.findUnique({ where: { id: questionId || "q_alias_1" } });
-    const targetQId = question ? question.id : "q_alias_1";
-
-    // 3. Create LearningSession
-    const session = await prisma.learningSession.create({
-      data: {
-        learnerId: profile.id,
-        questionId: targetQId,
-      },
+    const session = await prisma.learningSession.findUnique({
+      where: { id: sessionId },
+      include: { learner: true },
     });
 
-    // 4. Create Response row
-    const isCorrect = question ? question.expectedAnswer.trim() === (learnerResponse || "").trim() : false;
+    if (!session) {
+      return NextResponse.json({ error: "LearningSession not found" }, { status: 444 });
+    }
+
+    const question = await prisma.question.findUnique({ where: { id: questionId } });
+    if (!question) {
+      return NextResponse.json({ error: "Question not found" }, { status: 404 });
+    }
+
+    // 1. Normalized output comparison (correct != resolved)
+    const normActual = (learnerResponse || "").trim().toLowerCase();
+    const normExpected = question.expectedAnswer.trim().toLowerCase();
+    const isCorrect = normActual === normExpected;
+
+    // 2. Persist Response row
     const responseRow = await prisma.response.create({
       data: {
         sessionId: session.id,
-        learnerId: profile.id,
-        questionId: targetQId,
+        learnerId: session.learnerId,
+        questionId: question.id,
         content: learnerResponse || workingText || "No response",
         modality: modality || "TEXT",
         isCorrect: isCorrect,
@@ -45,52 +42,109 @@ export async function POST(req: Request) {
       },
     });
 
-    // 5. Call Python ML Engine FastAPI service /diagnose
-    let diagnosisResult = {
-      predicted_label: "M_ALIAS_COPY",
-      confidence: 0.85,
-      evidence_spans: [workingText || learnerResponse || ""],
-    };
-
+    // 3. Call FastAPI ML Engine /diagnose
+    let mlRes;
     try {
-      const mlRes = await fetch("http://127.0.0.1:8000/diagnose", {
+      mlRes = await fetch("http://127.0.0.1:8000/diagnose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question_id: targetQId,
+          question_id: question.id,
           final_answer: learnerResponse || "",
           working_text: workingText || "",
-          code: code || "",
+          code: learnerCode || "",
         }),
       });
-      if (mlRes.ok) {
-        diagnosisResult = await mlRes.json();
-      }
-    } catch (e) {
-      console.warn("ML Engine offline, using local fallback diagnosis");
+    } catch (err) {
+      // Return 503 ML_UNAVAILABLE on connection failure - NO FABRICATED FALLBACK
+      return NextResponse.json(
+        { status: "ML_UNAVAILABLE", reason: "ML Engine service at http://127.0.0.1:8000 is unavailable" },
+        { status: 503 }
+      );
     }
 
-    const mId = diagnosisResult.predicted_label === "CORRECT" || diagnosisResult.predicted_label === "OTHER_UNKNOWN"
-      ? null
-      : diagnosisResult.predicted_label;
+    if (!mlRes.ok) {
+      return NextResponse.json(
+        { status: "ML_UNAVAILABLE", reason: `ML Engine returned status ${mlRes.status}` },
+        { status: 503 }
+      );
+    }
 
-    // 6. Create Diagnosis row
+    const diagData = await mlRes.json();
+    const topLabel = diagData.predicted_label;
+    const conf = diagData.confidence;
+    const mId = topLabel === "CORRECT" || topLabel === "OTHER_UNKNOWN" ? null : topLabel;
+
+    // Determine status (DIAGNOSED vs AMBIGUOUS)
+    const isAmbiguous = conf < 0.40 || (diagData.classifier_probs && topLabel !== "CORRECT" && Object.values(diagData.classifier_probs as Record<string, number>).filter((v: number) => v > 0.2).length > 1);
+    const diagStatus = isAmbiguous ? "AMBIGUOUS" : "DIAGNOSED";
+
+    // 4. Persist Diagnosis row with candidate posterior JSON & engine trace
     const diagnosisRow = await prisma.diagnosis.create({
       data: {
         sessionId: session.id,
         misconceptionId: mId,
-        status: diagnosisResult.confidence < 0.4 ? "AMBIGUOUS" : "DIAGNOSED",
-        confidence: diagnosisResult.confidence,
-        evidence: JSON.stringify(diagnosisResult.evidence_spans || []),
+        status: diagStatus,
+        confidence: conf,
+        evidence: JSON.stringify(diagData.evidence_spans || []),
+        missingEvidence: JSON.stringify(diagData.classifier_probs || {}),
       },
     });
 
-    // 7. Write/Update MisconceptionHistory row if diagnosed
-    if (mId) {
+    let probeRecommendation = null;
+    let interventionRecommendation = null;
+
+    // 5. Active Probe Selection if AMBIGUOUS
+    if (isAmbiguous) {
+      try {
+        const probeRes = await fetch("http://127.0.0.1:8000/select-probe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            current_posterior: diagData.classifier_probs || {},
+            excluded_question_ids: [question.id],
+          }),
+        });
+        if (probeRes.ok) {
+          probeRecommendation = await probeRes.json();
+        }
+      } catch (e) {
+        console.warn("Probe selection failed:", e);
+      }
+    } else if (mId) {
+      // 6. Grounded Intervention Recommendation if DIAGNOSED
+      try {
+        const intRes = await fetch("http://127.0.0.1:8000/recommend-intervention", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            misconception_id: mId,
+            previous_interventions: [],
+          }),
+        });
+        if (intRes.ok) {
+          interventionRecommendation = await intRes.json();
+          const template = await prisma.interventionTemplate.findFirst({
+            where: { misconceptionId: mId },
+          });
+          if (template) {
+            await prisma.intervention.create({
+              data: {
+                sessionId: session.id,
+                templateId: template.id,
+              },
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("Intervention recommendation failed:", e);
+      }
+
+      // Update MisconceptionHistory
       await prisma.misconceptionHistory.upsert({
         where: {
           learnerId_misconceptionId: {
-            learnerId: profile.id,
+            learnerId: session.learnerId,
             misconceptionId: mId,
           },
         },
@@ -100,70 +154,58 @@ export async function POST(req: Request) {
           lastEncountered: new Date(),
         },
         create: {
-          learnerId: profile.id,
+          learnerId: session.learnerId,
           misconceptionId: mId,
           occurrences: 1,
           status: "PERSISTING",
         },
       });
-
-      // 8. Create Intervention & InterventionTemplate link if present
-      const template = await prisma.interventionTemplate.findFirst({
-        where: { misconceptionId: mId },
-      });
-      if (template) {
-        await prisma.intervention.create({
-          data: {
-            sessionId: session.id,
-            templateId: template.id,
-          },
-        });
-      }
     }
 
-    // 9. Write/Update MasteryRecord
-    if (question) {
-      await prisma.masteryRecord.upsert({
-        where: {
-          learnerId_conceptId: {
-            learnerId: profile.id,
-            conceptId: question.conceptId,
-          },
-        },
-        update: {
-          masteryLevel: isCorrect ? 0.8 : 0.4,
-          lastUpdated: new Date(),
-        },
-        create: {
-          learnerId: profile.id,
+    // 7. Update MasteryRecord (Beta/BKT update from evidence)
+    const existingMastery = await prisma.masteryRecord.findUnique({
+      where: {
+        learnerId_conceptId: {
+          learnerId: session.learnerId,
           conceptId: question.conceptId,
-          masteryLevel: isCorrect ? 0.8 : 0.4,
         },
-      });
-    }
+      },
+    });
 
-    // 10. Create VerificationAttempt row
-    const verificationRow = await prisma.verificationAttempt.create({
-      data: {
-        sessionId: session.id,
-        questionId: targetQId,
-        isCorrect: isCorrect,
-        resolutionStatus: isCorrect ? "PARTIALLY_RESOLVED" : "PERSISTING",
-        confidence: diagnosisResult.confidence,
-        evidence: JSON.stringify(diagnosisResult.evidence_spans || []),
+    const prevLevel = existingMastery ? existingMastery.masteryLevel : 0.5;
+    const newLevel = isCorrect
+      ? Math.min(1.0, prevLevel + 0.15 * (1.0 - prevLevel))
+      : Math.max(0.0, prevLevel - 0.20 * prevLevel);
+
+    await prisma.masteryRecord.upsert({
+      where: {
+        learnerId_conceptId: {
+          learnerId: session.learnerId,
+          conceptId: question.conceptId,
+        },
+      },
+      update: {
+        masteryLevel: newLevel,
+        lastUpdated: new Date(),
+      },
+      create: {
+        learnerId: session.learnerId,
+        conceptId: question.conceptId,
+        masteryLevel: newLevel,
       },
     });
 
     return NextResponse.json({
-      success: true,
+      status: "SUCCESS",
       sessionId: session.id,
       responseId: responseRow.id,
       diagnosis: diagnosisRow,
-      verification: verificationRow,
-      mId,
+      probeRecommendation,
+      interventionRecommendation,
+      isCorrect,
     });
   } catch (error: any) {
-    console.error("API error:", error);
+    console.error("API Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
