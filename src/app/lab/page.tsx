@@ -13,13 +13,17 @@ export default function LabPage() {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto", color: "#f8fafc", fontFamily: "sans-serif" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", borderBottom: "1px solid #334155", paddingBottom: "1rem" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", borderBottom: "1px solid #334155", paddingBottom: "1rem" }}>
         <h2>Evaluation & Research Lab <small style={{ fontSize: "14px", color: "#10b981" }}>(Reproducible Benchmark Results)</small></h2>
         <div>
           <Link href="/learn" style={{ marginRight: "1rem", color: "#94a3b8" }}>Learn</Link>
           <Link href="/dashboard" style={{ color: "#94a3b8" }}>Dashboard</Link>
         </div>
       </header>
+
+      <div style={{ background: "#1e293b", border: "1px solid #3b82f6", borderRadius: "6px", padding: "0.75rem 1rem", marginBottom: "1.5rem", fontSize: "0.875rem", color: "#93c5fd" }}>
+        <strong>Data Source Banner:</strong> Real Computed Benchmark Results | Loaded dynamically from <code>evaluation/results/*.json</code>.
+      </div>
 
       {/* Per-Model Metrics Table */}
       <section style={{ marginBottom: "2.5rem" }}>

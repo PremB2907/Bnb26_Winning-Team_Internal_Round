@@ -34,13 +34,17 @@ export default async function DashboardPage() {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto", color: "#f8fafc", fontFamily: "sans-serif" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", borderBottom: "1px solid #334155", paddingBottom: "1rem" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", borderBottom: "1px solid #334155", paddingBottom: "1rem" }}>
         <h2>Learner Model Dashboard <small style={{ fontSize: "14px", color: "#38bdf8" }}>(Alice Learner)</small></h2>
         <div>
           <Link href="/learn" style={{ marginRight: "1rem", color: "#94a3b8" }}>Learn</Link>
           <Link href="/lab" style={{ color: "#94a3b8" }}>Eval Lab</Link>
         </div>
       </header>
+
+      <div style={{ background: "#1e293b", border: "1px solid #3b82f6", borderRadius: "6px", padding: "0.75rem 1rem", marginBottom: "1.5rem", fontSize: "0.875rem", color: "#93c5fd" }}>
+        <strong>Data Source Banner:</strong> Real Learner Database Persistence | Querying live SQLite / Prisma <code>dev.db</code> tables.
+      </div>
 
       {/* Concept Mastery Records */}
       <section style={{ marginBottom: "2rem" }}>

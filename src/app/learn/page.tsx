@@ -54,13 +54,17 @@ export default function LearnPage() {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '1100px', margin: '0 auto', color: '#f8fafc', fontFamily: 'sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '1px solid #334155', paddingBottom: '1rem' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #334155', paddingBottom: '1rem' }}>
         <h2>Re:Learn <span style={{ color: '#38bdf8' }}>Interactive Python Learning</span></h2>
         <div>
           <Link href="/dashboard" style={{ marginRight: '1rem', color: '#94a3b8' }}>Dashboard</Link>
           <Link href="/lab" style={{ color: '#94a3b8' }}>Eval Lab</Link>
         </div>
       </header>
+
+      <div style={{ background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1.5rem', fontSize: '0.875rem', color: '#93c5fd' }}>
+        <strong>Data Source Banner:</strong> Real-Time Active Learning Loop | Evaluated on <code>test_unseen_question</code> held-out partition & human-validated <code>test_human</code> set.
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
         {/* Left Column: Problem & Inputs */}
