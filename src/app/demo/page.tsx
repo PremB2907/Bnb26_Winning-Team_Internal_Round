@@ -1,5 +1,5 @@
-import DemoInteractive from './DemoInteractive';
+import { redirect } from 'next/navigation';
 
 export default function DemoPage() {
-  return <DemoInteractive />;
+  redirect('/learn');
 }

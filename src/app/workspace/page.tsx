@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
-export default function Workspace() {
-  redirect('/demo');
+export default function WorkspacePage() {
+  redirect('/learn');
 }
