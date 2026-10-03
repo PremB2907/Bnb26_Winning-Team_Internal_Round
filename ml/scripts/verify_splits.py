@@ -30,9 +30,11 @@ def verify():
     for k, v in sorted(sources.items()):
         print(f"  {k:25s}: {v:4d} ({v/total*100:.1f}%)")
 
-    print("\n[Rows per Label]")
-    for k, v in sorted(labels.items()):
-        print(f"  {k:25s}: {v:4d} ({v/total*100:.1f}%)")
+    print("\n[Class Balance & Trivial Class Breakdown]")
+    trivial_count = sum(1 for d in data if d["label"] in ("CORRECT", "OTHER_UNKNOWN"))
+    misc_count = total - trivial_count
+    print(f"  Misconception Classes: {misc_count} ({misc_count/total*100:.1f}%)")
+    print(f"  Trivial Classes (CORRECT/OTHER_UNKNOWN): {trivial_count} ({trivial_count/total*100:.1f}%)")
 
     # Leakage assertions
     print("\n--- LEAKAGE VERIFICATION ---")
@@ -56,15 +58,13 @@ def verify():
     assert len(overlap_lbl) == 0, f"Leakage! {overlap_lbl}"
     print("ALL LEAKAGE ASSERTIONS PASSED GREEN! Zero data leakage detected.")
 
-    # 10 Samples per source
-    print("\n--- 10 RANDOM SAMPLES PER SOURCE ---")
-    for src in sources.keys():
-        print(f"\nSource: {src}")
-        src_rows = [d for d in data if d["source"] == src]
-        samples = random.sample(src_rows, min(2, len(src_rows)))
-        for s in samples:
-            print(f"  ID: {s['id']} | Q: {s['question_id']} | Label: {s['label']} | Answer: {s['final_answer']}")
-            print(f"  Working: \"{s['working_text']}\"")
+    # 15 Samples per source
+    print("\n--- 15 RANDOM DATASET SAMPLES ---")
+    samples = random.sample(data, min(15, len(data)))
+    for s in samples:
+        print(f"ID: {s['id']} | Q: {s['question_id']} | Label: {s['label']} | Source: {s['source']} | Split: {s['split']}")
+        print(f"  Working: \"{s['working_text']}\"")
+        print(f"  LearnerCode: \"{s.get('learner_code', '')}\"")
 
 if __name__ == "__main__":
     verify()

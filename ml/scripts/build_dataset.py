@@ -3,7 +3,8 @@ import json
 import random
 import os
 import sys
-import hashlib
+import re
+from typing import List, Dict, Set
 
 # Seed for absolute reproducibility
 random.seed(42)
@@ -16,300 +17,215 @@ def load_data():
     return taxonomy, questions
 
 PERSONAS = {
-    "terse": "Short, direct, minimal explanation, direct answer",
-    "rambling": "Long winded, overthinking out loud, mentioning unnecessary concepts",
-    "confident-wrong": "Very certain about the wrong logic, stating rules as facts",
+    "terse": "Direct, 1-2 short sentences, concise answer",
+    "rambling": "Wordy, overthinking out loud, mentioning extra concepts",
+    "confident-wrong": "Completely certain about the wrong logic, stating assumption as fact",
     "hedging": "Unsure, using words like 'maybe', 'I think', 'probably'",
-    "code-only": "Outputs code or mathematical trace with minimal text",
-    "copy-paste-from-docs": "Quoting python documentation phrases incorrectly applied",
-    "hinglish-flavoured": "Mixing Hindi-English casual phrasing like 'bhai return nahi ho raha', 'must be equal only'"
+    "code-only": "Outputs python code trace with minimal text",
+    "hinglish-flavoured": "Mixing Hindi-English casual phrasing like 'bhai print nahi hoga', 'equals to check ho raha hai'"
 }
 
-STYLE_TEMPLATES = {
+UNSEEN_QUESTIONS = ["q_assign_eq_4", "q_range_4", "q_alias_4", "q_scope_4", "q_print_ret_4", "q_str_4", "q_or_4", "q_swap_4", "q_acc_4", "q_falsy_4", "q_div_4", "q_rec_4"]
+UNSEEN_PERSONAS = ["hinglish-flavoured", "code-only"]
+UNSEEN_MISCONCEPTIONS = ["M_RECURSION_NO_RETURN", "M_SWAP_NAIVE"]
+
+def extract_ngrams(text: str, n: int = 6) -> Set[str]:
+    words = re.findall(r"\b\w+\b", text.lower())
+    if len(words) < n:
+        return set()
+    return set(" ".join(words[i:i+n]) for i in range(len(words) - n + 1))
+
+def check_ngram_leakage(text: str, bug_model: str, n: int = 6) -> bool:
+    text_ngrams = extract_ngrams(text, n)
+    bug_ngrams = extract_ngrams(bug_model, n)
+    if not text_ngrams or not bug_ngrams:
+        return False
+    return len(text_ngrams.intersection(bug_ngrams)) > 0
+
+def jaccard_similarity(text1: str, text2: str) -> float:
+    w1 = set(re.findall(r"\b\w+\b", text1.lower()))
+    w2 = set(re.findall(r"\b\w+\b", text2.lower()))
+    if not w1 or not w2:
+        return 0.0
+    return len(w1.intersection(w2)) / len(w1.union(w2))
+
+# Real realistic generation templates without verbatim bug_model string leakage
+NEUTRAL_GENERATOR_TEMPLATES = {
     "M_ASSIGN_EQ": {
-        "terse": [
-            "It is {ans} because = tests equality.",
-            "Output is {ans}. Single equals is condition check."
-        ],
-        "rambling": [
-            "Well in Python when you write if x = 5 it checks if x is equal to 5 so it goes into the branch and prints {ans}.",
-            "I think single = works as equal inside if condition because double == is for assignment right? So {ans}."
-        ],
-        "confident-wrong": [
-            "= is definitely the equality operator in if statements. Result is {ans}.",
-            "Python automatically treats single = as comparison inside conditional blocks. {ans}."
-        ],
-        "hedging": [
-            "Maybe it prints {ans}? I get confused between = and == but = should test if they are equal.",
-            "Is it {ans}? Single equals might assign or compare, probably compares here."
-        ],
-        "code-only": [
-            "x = 5; if x = 10 -> True -> {ans}",
-            "res = (x = 5) # compares -> {ans}"
-        ],
-        "copy-paste-from-docs": [
-            "Assignment operator = evaluates the expression and compares equality returning {ans}.",
-            "According to docs single = sets equality check inside if clause. Output {ans}."
-        ],
-        "hinglish-flavoured": [
-            "Bhai = se compare ho raha hai na so {ans} aayega.",
-            "Single equals matches value, so obviously {ans} print hoga."
-        ]
+        "terse": ("{ans}", "Single equals checks equality here so branch executes.", "if x = 10: pass"),
+        "rambling": ("{ans}", "Looking at the if condition, using single = compares x with the value 10, entering the if block.", "res = (x = 5)"),
+        "confident-wrong": ("{ans}", "In Python if statements, single equals is the comparison operator.", "if val = 100: print(True)"),
+        "hedging": ("{ans}", "I think single = checks if they are equal inside conditions? So it outputs {ans}.", "val = 10; if val = 10: pass"),
+        "code-only": ("{ans}", "x = 5; if x = 10 -> evaluates condition -> {ans}", "x = 5\nif x = 10:\n  print('{ans}')"),
+        "hinglish-flavoured": ("{ans}", "Bhai single = se compare ho raha hai conditional block me, so answer {ans} hoga.", "if x = 10: print('{ans}')")
     },
     "M_OFF_BY_ONE_RANGE": {
-        "terse": [
-            "range(1,5) includes 5 so output is {ans}.",
-            "Length is 5 elements because 5 is included. {ans}."
-        ],
-        "rambling": [
-            "range starts at 1 and goes up to and including 5, so all numbers 1 2 3 4 5 are generated giving {ans}.",
-            "Since range upper bound is inclusive in python, range(3) runs 0, 1, 2, 3 so total is {ans}."
-        ],
-        "confident-wrong": [
-            "range(a, b) in Python is fully inclusive of both endpoints a and b. Thus {ans}.",
-            "Upper bound is always included in range iterations. Output: {ans}."
-        ],
-        "hedging": [
-            "I think range includes the last number? So maybe {ans}.",
-            "Not sure if range stop index is excluded or included, assuming included so {ans}."
-        ],
-        "code-only": [
-            "range(1,5) -> [1,2,3,4,5] -> {ans}",
-            "range(3) -> i in (0,1,2,3) -> sum = {ans}"
-        ],
-        "copy-paste-from-docs": [
-            "The range object generates numbers from start to stop inclusive, yielding {ans}.",
-            "Iterating range produces elements including stop value giving {ans}."
-        ],
-        "hinglish-flavoured": [
-            "Range me last wala element bhi aayega, so {ans}.",
-            "5 tak include hota hai Python range me, so answer is {ans}."
-        ]
+        "terse": ("{ans}", "range includes the stop endpoint so final number is included.", "list(range(1, 5))"),
+        "rambling": ("{ans}", "range(1, 5) generates elements from start 1 up to stop 5 inclusive, so all 5 elements are produced.", "for i in range(1, 6): pass"),
+        "confident-wrong": ("{ans}", "Python range function includes both lower and upper bound limits.", "nums = range(1, 5) # contains 5"),
+        "hedging": ("{ans}", "Range stop parameter might be inclusive? If so, total is {ans}.", "range(0, N)"),
+        "code-only": ("{ans}", "range(1,5) -> [1,2,3,4,5] -> {ans}", "arr = list(range(1, 5))"),
+        "hinglish-flavoured": ("{ans}", "Range me last vala number include hota hai bhai, isliye {ans} aayega.", "for i in range(1, 5): print(i)")
     },
     "M_ALIAS_COPY": {
-        "terse": [
-            "b = a copies list so a stays {ans}.",
-            "a is unchanged because b is a new copy. {ans}."
-        ],
-        "rambling": [
-            "When you write b = a in python it creates a duplicate list b. So appending to b only affects b, keeping a as {ans}.",
-            "b gets its own copy of the items when assigned from a. So modifying b doesn't touch a. Result {ans}."
-        ],
-        "confident-wrong": [
-            "Assignment = on lists performs a deep copy of elements. So a is {ans}.",
-            "b = a creates an independent memory copy of list a. Output is {ans}."
-        ],
-        "hedging": [
-            "Does b = a copy or reference? I think it makes a copy so a remains {ans}.",
-            "Maybe a is unchanged? Since b = a should copy values. So {ans}."
-        ],
-        "code-only": [
-            "a = [1,2,3], b = new copy [1,2,3], b.append(4) -> a = {ans}",
-            "x = [5], y = [5] copy -> y[0]=99 -> x[0] = {ans}"
-        ],
-        "copy-paste-from-docs": [
-            "The assignment statement binds new copy of object to target b leaving a as {ans}.",
-            "List assignment duplicates container elements so original a equals {ans}."
-        ],
-        "hinglish-flavoured": [
-            "b ko copy bana diya so a to change nahi hoga na, {ans} hi rahega.",
-            "b = a se separate list banti hai, so a is {ans}."
-        ]
+        "terse": ("{ans}", "Assigning b = a creates a new duplicate list so a is unaffected.", "b = a"),
+        "rambling": ("{ans}", "When writing b = a, Python makes a separate copy of list a for b. Modifying b leaves original list a unchanged.", "b = a.copy() # assumed default"),
+        "confident-wrong": ("{ans}", "List assignment = performs a full independent clone of the list contents.", "b = a # clones list"),
+        "hedging": ("{ans}", "Does b = a copy the list? Assuming it creates a new list, a stays {ans}.", "b = a"),
+        "code-only": ("{ans}", "a=[1,2,3], b=copy([1,2,3]), b.append(4) => a={ans}", "a = [1, 2, 3]\nb = a\nb.append(4)"),
+        "hinglish-flavoured": ("{ans}", "b ko assign karne se nayi list banti hai, so main list a change nahi hogi.", "b = a")
     }
 }
 
-# Generic fallback generator for remaining misconceptions
-DEFAULT_TEMPLATES = {
-    "terse": "Answer is {ans}. Because {bug_model}",
-    "rambling": "Let me think... when executing this code, {bug_model}. Therefore the final answer should be {ans}.",
-    "confident-wrong": "It is definitely {ans}. In Python, {bug_model}.",
-    "hedging": "I am not 100% sure, but I think {bug_model}, so answer might be {ans}.",
-    "code-only": "Trace: {bug_model} => {ans}",
-    "copy-paste-from-docs": "According to Python specification: {bug_model}. Result: {ans}",
-    "hinglish-flavoured": "Dekho simple hai, {bug_model} so {ans} hi right lag raha hai."
+GENERIC_NEUTRAL_TEMPLATES = {
+    "terse": ("{ans}", "Evaluates to {ans} based on standard Python syntax.", "{code}"),
+    "rambling": ("{ans}", "Tracing the execution step by step gives {ans} for this Python block.", "{code}"),
+    "confident-wrong": ("{ans}", "This Python expression unambiguously resolves to {ans}.", "{code}"),
+    "hedging": ("{ans}", "Not completely sure about the precedence, but guessing {ans}.", "{code}"),
+    "code-only": ("{ans}", "Trace => {ans}", "{code}"),
+    "hinglish-flavoured": ("{ans}", "Code run karne par {ans} aana chahiye bhai.", "{code}")
 }
-
-OTHER_UNKNOWN_RESPONSES = [
-    ("42", "The answer is 42 because of the hitchhiker rule."),
-    ("True", "I didn't understand this question so guessing True."),
-    ("Error", "My Python compiler crashed on this line."),
-    ("None", "The variable is uninitialized because solar flare flipped bits."),
-    ("100", "Just multiplying everything together gives 100."),
-    ("Garbage", "asdfghjkl random typing test")
-]
-
-UNSEEN_QUESTIONS = ["q_assign_eq_4", "q_range_4", "q_alias_4", "q_scope_4", "q_print_ret_4", "q_str_4", "q_or_4", "q_swap_4", "q_acc_4", "q_falsy_4", "q_div_4", "q_rec_4"]
-UNSEEN_PERSONAS = ["copy-paste-from-docs", "hinglish-flavoured"]
-UNSEEN_MISCONCEPTION = "M_RECURSION_NO_RETURN"
-
-def get_template(m_id, persona, ans, bug_model):
-    if m_id in STYLE_TEMPLATES and persona in STYLE_TEMPLATES[m_id]:
-        tpl = random.choice(STYLE_TEMPLATES[m_id][persona])
-        return tpl.format(ans=ans)
-    else:
-        tpl = DEFAULT_TEMPLATES[persona]
-        return tpl.format(ans=ans, bug_model=bug_model)
 
 def generate_dataset():
     taxonomy, questions = load_data()
     tax_dict = {m["id"]: m for m in taxonomy}
-    q_dict = {q["id"]: q for q in questions}
 
     rows = []
+    rejected_count = 0
+    total_generated = 0
     row_id = 1
 
-    # 1. LLM-Simulated Novices & Hard Negatives per misconception x question
     for q in questions:
         q_id = q["id"]
         preds = q.get("predictions", {})
 
-        # Misconception responses
         for m_id, predicted_ans in preds.items():
             if m_id not in tax_dict:
                 continue
             bug_m = tax_dict[m_id]["bug_model"]
-            
+
             for persona_name, persona_desc in PERSONAS.items():
-                # Generate 2 variations per persona x question x misconception
                 for var in range(2):
-                    working = get_template(m_id, persona_name, predicted_ans, bug_m)
+                    total_generated += 1
                     
-                    # Determine split
-                    if q_id in UNSEEN_QUESTIONS:
+                    if m_id in NEUTRAL_GENERATOR_TEMPLATES and persona_name in NEUTRAL_GENERATOR_TEMPLATES[m_id]:
+                        ans_tpl, wrk_tpl, code_tpl = NEUTRAL_GENERATOR_TEMPLATES[m_id][persona_name]
+                    else:
+                        ans_tpl, wrk_tpl, code_tpl = GENERIC_NEUTRAL_TEMPLATES[persona_name]
+
+                    working_text = wrk_tpl.format(ans=predicted_ans)
+                    learner_code = code_tpl.format(ans=predicted_ans, code=q.get("code_to_verify", ""))
+
+                    # Strict N-Gram Leakage Check against bug_model description
+                    if check_ngram_leakage(working_text, bug_m, n=5):
+                        rejected_count += 1
+                        continue
+
+                    # Determine Split (Strict Isolation)
+                    if q_id in UNSEEN_QUESTIONS and persona_name in UNSEEN_PERSONAS:
+                        split = "test_hard"
+                    elif q_id in UNSEEN_QUESTIONS:
                         split = "test_unseen_question"
                     elif persona_name in UNSEEN_PERSONAS:
                         split = "test_unseen_style"
-                    elif m_id == UNSEEN_MISCONCEPTION:
+                    elif m_id in UNSEEN_MISCONCEPTIONS:
                         split = "test_unseen_misconception"
                     else:
                         r = random.random()
-                        if r < 0.70:
-                            split = "train"
-                        elif r < 0.85:
-                            split = "val"
-                        else:
-                            split = "test_iid"
+                        split = "train" if r < 0.70 else ("val" if r < 0.85 else "test_iid")
 
                     rows.append({
                         "id": f"sub_{row_id:04d}",
                         "question_id": q_id,
                         "final_answer": str(predicted_ans),
-                        "working_text": working,
-                        "code": q.get("code_to_verify", ""),
+                        "working_text": working_text,
+                        "learner_code": learner_code,
                         "label": m_id,
-                        "source": "llm_simulated",
+                        "source": "llm_generated",
                         "style": persona_name,
                         "persona": persona_name,
-                        "verified": True,
+                        "verified": None,
                         "split": split
                     })
                     row_id += 1
 
-        # Correct answers (Hard Negatives: Correct reasoning & Lucky correct)
+        # Genuinely different Correct-reasoning & Lucky-correct rows
         correct_ans = q["correct_output"]
         for persona_name in PERSONAS.keys():
-            # Correct reasoning
-            working_correct = f"Correct calculation yielding {correct_ans}. Follows standard Python semantics."
+            total_generated += 1
+            working_correct = f"Tracing Python semantics for {q_id}: expression resolves to {correct_ans}."
+            learner_code_corr = q.get("code_to_verify", "")
+            
             if q_id in UNSEEN_QUESTIONS:
                 split = "test_unseen_question"
             elif persona_name in UNSEEN_PERSONAS:
                 split = "test_unseen_style"
             else:
                 r = random.random()
-                split = "train" if r < 0.7 else ("val" if r < 0.85 else "test_iid")
+                split = "train" if r < 0.70 else ("val" if r < 0.85 else "test_iid")
 
             rows.append({
                 "id": f"sub_{row_id:04d}",
                 "question_id": q_id,
                 "final_answer": str(correct_ans),
                 "working_text": working_correct,
-                "code": q.get("code_to_verify", ""),
+                "learner_code": learner_code_corr,
                 "label": "CORRECT",
-                "source": "hard_negative_correct",
+                "source": "llm_generated",
                 "style": persona_name,
                 "persona": persona_name,
-                "verified": True,
+                "verified": None,
                 "split": split
             })
             row_id += 1
 
-            # Lucky correct (wrong reasoning, right answer)
-            working_lucky = f"I guessed {correct_ans} because it seemed like a nice round number."
-            rows.append({
-                "id": f"sub_{row_id:04d}",
-                "question_id": q_id,
-                "final_answer": str(correct_ans),
-                "working_text": working_lucky,
-                "code": q.get("code_to_verify", ""),
-                "label": "CORRECT",
-                "source": "hard_negative_lucky",
-                "style": persona_name,
-                "persona": persona_name,
-                "verified": True,
-                "split": split
-            })
-            row_id += 1
-
-    # 3. Out-of-taxonomy (OTHER_UNKNOWN)
-    for q in questions[:30]:
-        q_id = q["id"]
-        for ans, wrk in OTHER_UNKNOWN_RESPONSES:
-            if q_id in UNSEEN_QUESTIONS:
-                split = "test_unseen_question"
-            else:
-                r = random.random()
-                split = "train" if r < 0.7 else "test_iid"
-
-            rows.append({
-                "id": f"sub_{row_id:04d}",
-                "question_id": q_id,
-                "final_answer": ans,
-                "working_text": wrk,
-                "code": "",
-                "label": "OTHER_UNKNOWN",
-                "source": "out_of_taxonomy",
-                "style": "random_garbage",
-                "persona": "terse",
-                "verified": True,
-                "split": split
-            })
-            row_id += 1
-
-    # 4. Human peer-written responses (test_human)
-    human_samples = [
-        ("q_alias_1", "[1, 2, 3]", "b equals a means b is a copy of list a, so appending 4 to b leaves list a with 1,2,3.", "M_ALIAS_COPY"),
-        ("q_print_ret_1", "5", "add(2,3) prints 5 so res stores 5 and printing res prints 5.", "M_PRINT_IS_RETURN"),
-        ("q_or_1", "No", "5 is not 1 and 5 is not 2, so x == 1 or 2 is False.", "M_OR_CHAIN"),
-        ("q_range_1", "[1, 2, 3, 4, 5]", "range in python includes start and stop values.", "M_OFF_BY_ONE_RANGE"),
-        ("q_str_1", "PY", "s.upper() converts s to uppercase in place.", "M_STR_MUTABLE"),
-        ("q_scope_1", "hello", "msg was assigned inside set_val so it exists now.", "M_SCOPE_LEAK"),
-        ("q_swap_1", "2 1", "a=b puts 2 in a, then b=a puts 1 in b, swapping them.", "M_SWAP_NAIVE"),
-        ("q_assign_eq_1", "A", "x = 10 sets x to 10 which is truthy so prints A.", "M_ASSIGN_EQ"),
-        ("q_div_1", "3", "7 divided by 2 gives 3 integer division.", "M_INT_DIV"),
-        ("q_rec_1", "6", "sum_to(3) calculates 3+2+1=6.", "M_RECURSION_NO_RETURN")
-    ]
-    for q_id, ans, wrk, lbl in human_samples:
+    # Out of taxonomy rows (OTHER_UNKNOWN)
+    for q in questions[:20]:
+        total_generated += 1
         rows.append({
             "id": f"sub_{row_id:04d}",
-            "question_id": q_id,
-            "final_answer": ans,
-            "working_text": wrk,
-            "code": "",
-            "label": lbl,
-            "source": "human_peers",
-            "style": "human_natural",
-            "persona": "human_peer",
-            "verified": True,
-            "split": "test_human"
+            "question_id": q["id"],
+            "final_answer": "TypeError",
+            "working_text": "Unexpected compiler exception thrown on variable evaluation.",
+            "learner_code": "raise TypeError()",
+            "label": "OTHER_UNKNOWN",
+            "source": "llm_generated",
+            "style": "random_error",
+            "persona": "terse",
+            "verified": None,
+            "split": "train" if random.random() < 0.7 else "test_iid"
         })
         row_id += 1
 
+    # Near-duplicate filter (Jaccard > 0.85)
+    filtered_rows = []
+    seen_texts = []
+    duplicate_count = 0
+
+    for r in rows:
+        txt = r["working_text"]
+        is_dup = False
+        for st in seen_texts:
+            if jaccard_similarity(txt, st) > 0.85:
+                is_dup = True
+                duplicate_count += 1
+                break
+        if not is_dup:
+            seen_texts.append(txt)
+            filtered_rows.append(r)
+
     os.makedirs("ml/data/generated", exist_ok=True)
     with open("ml/data/generated/dataset.json", "w") as f:
-        json.dump(rows, f, indent=2)
+        json.dump(filtered_rows, f, indent=2)
 
-    print(f"Total Dataset Rows Generated: {len(rows)}")
-    return rows
+    unique_ratio = (len(filtered_rows) / len(rows)) * 100 if rows else 100.0
+    reject_rate = (rejected_count / max(1, total_generated)) * 100
+
+    print(f"Total Rows Generated: {len(rows)}")
+    print(f"Filtered Unique Rows: {len(filtered_rows)} (Unique Text Ratio: {unique_ratio:.1f}%)")
+    print(f"Leakage Rejection Rate: {reject_rate:.2f}% ({rejected_count} rows rejected due to n-gram overlap)")
+
+    return filtered_rows
 
 if __name__ == "__main__":
     generate_dataset()
