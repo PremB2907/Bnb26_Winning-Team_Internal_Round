@@ -1,0 +1,26 @@
+[
+  {
+    "component_removed": "None (Full B6 Hybrid)",
+    "accuracy": 0.9703703703703703,
+    "f1": 0.9019357743097239,
+    "delta_acc": 0.0
+  },
+  {
+    "component_removed": "Outcome Map Agreement",
+    "accuracy": 0.9703703703703703,
+    "f1": 0.9095217689818416,
+    "delta_acc": 0.0
+  },
+  {
+    "component_removed": "AST Code Features",
+    "accuracy": 0.9703703703703703,
+    "f1": 0.9193386879834353,
+    "delta_acc": 0.0
+  },
+  {
+    "component_removed": "LLM Grounded Adjudicator",
+    "accuracy": 0.9703703703703703,
+    "f1": 0.9095217689818416,
+    "delta_acc": 0.0
+  }
+]

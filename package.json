@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:all": "PYTHONPATH=. ml/venv/bin/python ml/serve.py & next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "PYTHONPATH=. ml/venv/bin/python ml/scripts/test_selector_bayes.py && PYTHONPATH=. ml/venv/bin/python ml/scripts/test_resolution.py",
+    "eval": "bash ml/scripts/run_full_eval.sh",
     "postinstall": "prisma skills sync || exit 0"
   },
   "prisma": {
